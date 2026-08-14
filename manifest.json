@@ -1,0 +1,9 @@
+{
+  "name": "The Naked Hop Soaperie",
+  "short_name": "Naked Hop",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#fff8ef",
+  "theme_color": "#5b321d",
+  "icons": []
+}
