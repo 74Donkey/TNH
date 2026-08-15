@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Naked Hop Cloud Test</title>
+<style>
+body{font-family:system-ui,-apple-system,Segoe UI,sans-serif;background:#fff8ef;color:#29231f;margin:0}
+main{max-width:560px;margin:40px auto;padding:20px}
+.card{background:white;border:1px solid #eadfd4;border-radius:16px;padding:20px}
+h1{color:#5b321d}
+label{display:block;font-weight:700;margin:12px 0 4px}
+input{width:100%;padding:11px;border:1px solid #d9cbbf;border-radius:9px;font:inherit;box-sizing:border-box}
+button{margin-top:12px;margin-right:8px;border:0;border-radius:10px;padding:11px 14px;font-weight:700;background:#5b321d;color:white;cursor:pointer}
+.secondary{background:#efe5dc;color:#5b321d}
+.status{margin-top:16px;padding:12px;border-radius:10px;background:#f4ece4;white-space:pre-wrap}
+</style>
+<script src="config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+<main>
+<div class="card">
+<h1>The Naked Hop Soaperie</h1>
+<p>This page tests only the Supabase account connection.</p>
+
+<label>Email</label>
+<input id="email" type="email" placeholder="you@example.com">
+
+<label>Password</label>
+<input id="password" type="password" placeholder="At least 6 characters">
+
+<button id="createBtn" type="button">Create Account</button>
+<button id="signInBtn" type="button" class="secondary">Sign In</button>
+
+<div id="status" class="status">Checking Supabase…</div>
+</div>
+</main>
+
+<script>
+let client=null;
+const statusBox=document.getElementById('status');
+
+function msg(t){statusBox.textContent=t;}
+
+function setup(){
+  if(!window.TNH_CONFIG){
+    msg('config.js was not found.');
+    return false;
+  }
+  if(!window.TNH_CONFIG.SUPABASE_URL || !window.TNH_CONFIG.SUPABASE_PUBLISHABLE_KEY){
+    msg('Supabase URL or publishable key is missing from config.js.');
+    return false;
+  }
+  if(!window.supabase || typeof window.supabase.createClient!=='function'){
+    msg('Supabase browser library did not load.');
+    return false;
+  }
+  try{
+    client=window.supabase.createClient(
+      window.TNH_CONFIG.SUPABASE_URL,
+      window.TNH_CONFIG.SUPABASE_PUBLISHABLE_KEY
+    );
+    msg('Supabase connected. You can create an account.');
+    return true;
+  }catch(e){
+    msg('Connection error: '+(e.message||e));
+    return false;
+  }
+}
+
+document.getElementById('createBtn').onclick=async()=>{
+  if(!client && !setup()) return;
+  const email=document.getElementById('email').value.trim();
+  const password=document.getElementById('password').value;
+  if(!email){msg('Please enter an email address.');return;}
+  if(password.length<6){msg('Password must be at least 6 characters.');return;}
+  msg('Creating account…');
+  try{
+    const {data,error}=await client.auth.signUp({email,password});
+    if(error){msg('Create account error: '+error.message);return;}
+    if(data.session){
+      msg('Account created and signed in successfully.');
+    }else{
+      msg('Account created. Check your email for a confirmation message, then return here and sign in.');
+    }
+  }catch(e){
+    msg('Create account error: '+(e.message||e));
+  }
+};
+
+document.getElementById('signInBtn').onclick=async()=>{
+  if(!client && !setup()) return;
+  const email=document.getElementById('email').value.trim();
+  const password=document.getElementById('password').value;
+  msg('Signing in…');
+  try{
+    const {data,error}=await client.auth.signInWithPassword({email,password});
+    if(error){msg('Sign in error: '+error.message);return;}
+    msg('Signed in successfully as '+data.user.email+'.');
+  }catch(e){
+    msg('Sign in error: '+(e.message||e));
+  }
+};
+
+window.addEventListener('load',setup);
+</script>
+</body>
+</html>
