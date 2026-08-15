@@ -1,0 +1,594 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#5b321d">
+<title>The Naked Hop Soaperie</title>
+<style>
+:root{--brown:#5b321d;--cream:#fff8ef;--green:#3f5d3a;--ink:#29231f;--line:#eadfd4}
+*{box-sizing:border-box}body{margin:0;font-family:system-ui,-apple-system,Segoe UI,sans-serif;background:var(--cream);color:var(--ink)}
+header{background:var(--brown);color:#fff;padding:18px 16px}header h1{margin:0;font-size:22px}header p{margin:4px 0 0;opacity:.85;font-size:13px}
+nav{display:flex;gap:6px;overflow:auto;background:#fff;border-bottom:1px solid var(--line);padding:8px;position:sticky;top:0;z-index:10}
+nav button{border:0;background:#f4ece4;border-radius:10px;padding:10px 12px;white-space:nowrap;font-weight:700;color:var(--brown)}
+nav button.active{background:var(--brown);color:#fff}
+main{max-width:1050px;margin:auto;padding:16px}.page{display:none}.page.active{display:block}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}.card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:16px;box-shadow:0 2px 8px #00000008}
+.big{font-size:28px;font-weight:800}.muted{color:#766b63;font-size:13px}
+button,.btn{cursor:pointer;border:0;border-radius:10px;padding:10px 14px;font-weight:700;background:var(--brown);color:#fff}
+.secondary{background:#efe5dc;color:var(--brown)}.green{background:var(--green)}.danger{background:#9b2c2c}
+form{background:#fff;border:1px solid var(--line);border-radius:16px;padding:16px;margin-bottom:16px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}label{font-size:13px;font-weight:700}
+input,textarea{width:100%;padding:11px;border:1px solid #d9cbbf;border-radius:9px;background:#fff;margin-top:5px;font:inherit}textarea{min-height:80px}
+table{width:100%;border-collapse:collapse;background:#fff;border-radius:12px;overflow:hidden}th,td{text-align:left;padding:10px;border-bottom:1px solid var(--line);font-size:14px}th{background:#f4ece4}
+.actions{display:flex;gap:6px;flex-wrap:wrap}.low{color:#a33;font-weight:800}.empty{padding:30px;text-align:center;color:#766b63}
+.cart-row{display:flex;justify-content:space-between;gap:8px;border-bottom:1px solid var(--line);padding:10px 0}.total{font-size:24px;font-weight:900;text-align:right;padding:14px 0}
+.codebox{background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px;margin:10px 0;text-align:center}
+.notice{background:#fff3cd;border:1px solid #ffe69c;padding:12px;border-radius:12px;margin-bottom:14px}
+.status{margin-top:12px;padding:12px;border-radius:10px;background:#f4ece4;white-space:pre-wrap}
+#errorBox{display:none;background:#f8d7da;border:1px solid #f1aeb5;padding:12px;border-radius:12px;margin-bottom:14px;white-space:pre-wrap}
+@media(max-width:600px){main{padding:10px}header h1{font-size:19px}}
+</style>
+
+<!-- EDIT ONLY THESE TWO VALUES IN GITHUB -->
+<script>
+window.TNH_CONFIG = {
+  SUPABASE_URL: "PASTE_YOUR_SUPABASE_URL_HERE",
+  SUPABASE_PUBLISHABLE_KEY: "PASTE_YOUR_SUPABASE_PUBLISHABLE_KEY_HERE"
+};
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+</head>
+<body>
+<header>
+  <h1>THE NAKED HOP SOAPERIE</h1>
+  <p>Inventory • Barcodes • QR Codes • Checkout</p>
+  <div id="cloudBadge" style="margin-top:8px;font-size:12px;opacity:.9">Checking cloud…</div>
+</header>
+
+<nav>
+<button data-page="home" class="active">Dashboard</button>
+<button data-page="products">Products</button>
+<button data-page="inventory">Inventory</button>
+<button data-page="scan">Scan & Sell</button>
+<button data-page="codes">Barcodes</button>
+<button data-page="sales">Sales</button>
+<button data-page="account">Account</button>
+</nav>
+
+<main>
+<div id="errorBox"></div>
+
+<section id="home" class="page active">
+<h2>Dashboard</h2>
+<div class="cards">
+<div class="card"><div class="muted">Products</div><div class="big" id="dashProducts">0</div></div>
+<div class="card"><div class="muted">Units in stock</div><div class="big" id="dashStock">0</div></div>
+<div class="card"><div class="muted">Today's sales</div><div class="big" id="dashSales">$0.00</div></div>
+<div class="card"><div class="muted">Low stock</div><div class="big" id="dashLow">0</div></div>
+</div>
+<div class="card" style="margin-top:16px">
+<h3>Backup</h3>
+<p>Download a CSV backup of your inventory at any time.</p>
+<button id="exportBtn">Export Inventory CSV</button>
+</div>
+</section>
+
+<section id="products" class="page">
+<h2>Products</h2>
+<form id="productForm">
+<div class="grid">
+<label>Product name<input id="pName" required placeholder="e.g. Hop Head Beer Soap"></label>
+<label>Scent<input id="pScent" placeholder="e.g. Cedar & Citrus"></label>
+<label>Price ($)<input id="pPrice" type="number" step="0.01" min="0" required></label>
+<label>Cost ($)<input id="pCost" type="number" step="0.01" min="0"></label>
+<label>Starting stock<input id="pStock" type="number" min="0" value="0"></label>
+<label>Low-stock level<input id="pLow" type="number" min="0" value="5"></label>
+<label>Batch number<input id="pBatch" placeholder="e.g. HH-2026-08"></label>
+<label>Date made<input id="pMade" type="date"></label>
+<label>Cure date<input id="pCure" type="date"></label>
+</div>
+<label>Ingredients<textarea id="pIngredients" placeholder="List ingredients..."></textarea></label>
+<div class="actions" style="margin-top:12px">
+<button type="submit">Add Product</button>
+<button type="button" class="secondary" id="sampleBtn">Add sample soaps</button>
+</div>
+</form>
+<div id="productTable"></div>
+</section>
+
+<section id="inventory" class="page">
+<h2>Inventory</h2>
+<div id="inventoryTable"></div>
+</section>
+
+<section id="scan" class="page">
+<h2>Scan & Sell</h2>
+<div class="card">
+<h3>iPhone Camera Scanner</h3>
+<p>Open the camera scanner on its own page so it cannot interfere with the dashboard.</p>
+<a href="scanner.html" style="display:inline-block;text-decoration:none;background:#5b321d;color:white;border-radius:10px;padding:12px 16px;font-weight:700">Open Camera Scanner</a>
+</div>
+<div class="card" style="margin-top:12px">
+<h3>Manual backup</h3>
+<label>Product SKU<input id="scanInput" placeholder="NHS-0001"></label>
+<div class="actions" style="margin-top:10px">
+<button id="addBySkuBtn">Add to cart</button>
+<button class="secondary" id="clearCartBtn">Clear cart</button>
+</div>
+</div>
+<div class="card" style="margin-top:12px">
+<h3>Cart</h3>
+<div id="cart"></div>
+<div class="total" id="cartTotal">$0.00</div>
+<button class="green" id="completeSaleBtn">Complete Sale</button>
+</div>
+</section>
+
+<section id="codes" class="page">
+<h2>Barcode & QR Code Maker</h2>
+<div class="grid" id="codeCards"></div>
+</section>
+
+<section id="sales" class="page">
+<h2>Sales History</h2>
+<div id="salesTable"></div>
+</section>
+
+<section id="account" class="page">
+<h2>Account & Cloud Sync</h2>
+<div class="card">
+<h3>Cloud connection</h3>
+<p id="cloudModeText">Checking configuration…</p>
+<div class="grid">
+<label>Email<input id="authEmail" type="email" placeholder="you@example.com"></label>
+<label>Password<input id="authPassword" type="password" placeholder="At least 6 characters"></label>
+</div>
+<div class="actions" style="margin-top:12px">
+<button type="button" id="signInBtn">Sign In</button>
+<button type="button" class="secondary" id="signUpBtn">Create Account</button>
+<button type="button" class="danger" id="signOutBtn" style="display:none">Sign Out</button>
+</div>
+<div class="status" id="authStatus">Ready.</div>
+</div>
+<div class="card" style="margin-top:12px">
+<h3>Move local data to cloud</h3>
+<p>If you already entered products locally, sign in first and use this once.</p>
+<button type="button" id="migrateBtn">Upload Local Data to Cloud</button>
+</div>
+</section>
+</main>
+
+<script>
+(function(){
+'use strict';
+
+const KEY='nhs_data_v11';
+const SESSION_KEY='nhs_supabase_session_v1';
+let data={products:[],sales:[]};
+let cart=[];
+let session=null;
+
+function showError(err){
+  const box=document.getElementById('errorBox');
+  box.style.display='block';
+  box.textContent='App error: '+(err&&err.message?err.message:String(err));
+}
+window.addEventListener('error',e=>showError(e.error||e.message));
+window.addEventListener('unhandledrejection',e=>showError(e.reason||'Unknown error'));
+
+function cfg(){
+  return window.TNH_CONFIG||{};
+}
+function configured(){
+  return cfg().SUPABASE_URL &&
+         cfg().SUPABASE_PUBLISHABLE_KEY &&
+         !cfg().SUPABASE_URL.includes('PASTE_') &&
+         !cfg().SUPABASE_PUBLISHABLE_KEY.includes('PASTE_');
+}
+function baseUrl(){
+  return String(cfg().SUPABASE_URL||'').replace(/\/+$/,'');
+}
+function apiHeaders(withAuth=true){
+  const h={
+    'apikey':cfg().SUPABASE_PUBLISHABLE_KEY,
+    'Content-Type':'application/json'
+  };
+  if(withAuth && session && session.access_token){
+    h['Authorization']='Bearer '+session.access_token;
+  }
+  return h;
+}
+
+function saveLocal(){
+  localStorage.setItem(KEY,JSON.stringify(data));
+}
+function loadLocal(){
+  try{
+    const raw=localStorage.getItem(KEY);
+    if(raw){
+      const parsed=JSON.parse(raw);
+      if(parsed && Array.isArray(parsed.products) && Array.isArray(parsed.sales)) data=parsed;
+    }
+  }catch(e){showError(e)}
+}
+function loadSession(){
+  try{
+    const raw=localStorage.getItem(SESSION_KEY);
+    session=raw?JSON.parse(raw):null;
+  }catch(e){session=null}
+}
+function saveSession(s){
+  session=s||null;
+  if(session) localStorage.setItem(SESSION_KEY,JSON.stringify(session));
+  else localStorage.removeItem(SESSION_KEY);
+  updateCloudUI();
+}
+
+async function refreshSessionIfNeeded(){
+  if(!session || !session.refresh_token || !configured()) return;
+  const exp=(session.expires_at||0)*1000;
+  if(exp && exp-Date.now()>60000) return;
+  try{
+    const res=await fetch(baseUrl()+'/auth/v1/token?grant_type=refresh_token',{
+      method:'POST',
+      headers:apiHeaders(false),
+      body:JSON.stringify({refresh_token:session.refresh_token})
+    });
+    const body=await res.json();
+    if(res.ok){
+      if(body.expires_in && !body.expires_at) body.expires_at=Math.floor(Date.now()/1000)+body.expires_in;
+      saveSession(body);
+    }else{
+      saveSession(null);
+    }
+  }catch(e){}
+}
+
+async function authRequest(path, body){
+  const res=await fetch(baseUrl()+path,{
+    method:'POST',
+    headers:apiHeaders(false),
+    body:JSON.stringify(body)
+  });
+  let result={};
+  try{result=await res.json()}catch(e){}
+  if(!res.ok) throw new Error(result.msg||result.message||result.error_description||('HTTP '+res.status));
+  if(result.expires_in && !result.expires_at) result.expires_at=Math.floor(Date.now()/1000)+result.expires_in;
+  return result;
+}
+
+async function signUp(){
+  const st=document.getElementById('authStatus');
+  if(!configured()){st.textContent='Cloud settings are not filled in yet.';return}
+  const email=document.getElementById('authEmail').value.trim();
+  const password=document.getElementById('authPassword').value;
+  if(!email){st.textContent='Please enter an email address.';return}
+  if(password.length<6){st.textContent='Password must be at least 6 characters.';return}
+  st.textContent='Creating account…';
+  try{
+    const result=await authRequest('/auth/v1/signup',{email,password});
+    if(result.access_token){
+      saveSession(result);
+      st.textContent='Account created and signed in.';
+      await loadCloudData();
+    }else{
+      st.textContent='Account created. Check your email for a confirmation message, then return here and sign in.';
+    }
+  }catch(e){
+    st.textContent='Create account error: '+e.message;
+  }
+}
+
+async function signIn(){
+  const st=document.getElementById('authStatus');
+  if(!configured()){st.textContent='Cloud settings are not filled in yet.';return}
+  const email=document.getElementById('authEmail').value.trim();
+  const password=document.getElementById('authPassword').value;
+  if(!email || !password){st.textContent='Enter your email and password.';return}
+  st.textContent='Signing in…';
+  try{
+    const result=await authRequest('/auth/v1/token?grant_type=password',{email,password});
+    saveSession(result);
+    st.textContent='Signed in successfully.';
+    await loadCloudData();
+  }catch(e){
+    st.textContent='Sign in error: '+e.message;
+  }
+}
+
+function signOut(){
+  saveSession(null);
+  document.getElementById('authStatus').textContent='Signed out. Local data is still available.';
+}
+
+function updateCloudUI(){
+  const badge=document.getElementById('cloudBadge');
+  const mode=document.getElementById('cloudModeText');
+  const out=document.getElementById('signOutBtn');
+
+  if(!configured()){
+    badge.textContent='Local mode';
+    mode.textContent='Cloud settings are not filled in yet.';
+    out.style.display='none';
+  }else if(session && session.access_token){
+    badge.textContent='Cloud connected ✓';
+    mode.textContent='Signed in. Inventory can sync between your HP and iPhone.';
+    out.style.display='';
+  }else{
+    badge.textContent='Cloud ready — sign in';
+    mode.textContent='Cloud is configured. Sign in with the same account on both devices.';
+    out.style.display='none';
+  }
+}
+
+async function rest(path, options={}){
+  await refreshSessionIfNeeded();
+  if(!session || !session.access_token) throw new Error('Please sign in first.');
+  const res=await fetch(baseUrl()+'/rest/v1/'+path,{
+    ...options,
+    headers:{...apiHeaders(true),...(options.headers||{})}
+  });
+  if(!res.ok){
+    let t='';
+    try{t=await res.text()}catch(e){}
+    throw new Error(t||('HTTP '+res.status));
+  }
+  if(res.status===204) return null;
+  const text=await res.text();
+  return text?JSON.parse(text):null;
+}
+
+function dbProductToApp(p){
+  return {
+    id:p.id,sku:p.sku,name:p.name,scent:p.scent||'',price:Number(p.price||0),
+    cost:Number(p.cost||0),stock:Number(p.stock||0),low:Number(p.low_stock||0),
+    ingredients:p.ingredients||'',batch:p.batch_number||'',made:p.date_made||'',cure:p.cure_date||''
+  };
+}
+function appProductToDb(p){
+  return {
+    id:p.id,sku:p.sku,name:p.name,scent:p.scent||'',price:Number(p.price||0),
+    cost:Number(p.cost||0),stock:Number(p.stock||0),low_stock:Number(p.low||0),
+    ingredients:p.ingredients||'',batch_number:p.batch||null,date_made:p.made||null,cure_date:p.cure||null
+  };
+}
+
+async function loadCloudData(){
+  if(!session || !session.user || !session.user.id) return;
+  try{
+    const uid=session.user.id;
+    const products=await rest('products?user_id=eq.'+encodeURIComponent(uid)+'&select=*&order=created_at.asc');
+    const sales=await rest('sales?user_id=eq.'+encodeURIComponent(uid)+'&select=*&order=sold_at.asc');
+    data.products=(products||[]).map(dbProductToApp);
+    data.sales=(sales||[]).map(s=>({id:s.id,date:s.sold_at,items:s.items||[],total:Number(s.total||0)}));
+    saveLocal();
+    renderAll();
+  }catch(e){
+    document.getElementById('authStatus').textContent='Cloud load error: '+e.message;
+  }
+}
+
+async function persistProduct(p){
+  if(!session || !session.user) return;
+  const row={...appProductToDb(p),user_id:session.user.id};
+  await rest('products?on_conflict=id',{
+    method:'POST',
+    headers:{'Prefer':'resolution=merge-duplicates,return=minimal'},
+    body:JSON.stringify(row)
+  });
+}
+
+async function deleteCloudProduct(id){
+  if(!session || !session.user) return;
+  await rest('products?id=eq.'+encodeURIComponent(id),{method:'DELETE'});
+}
+
+async function persistSale(s){
+  if(!session || !session.user) return;
+  const row={id:s.id,user_id:session.user.id,sold_at:s.date,items:s.items,total:s.total};
+  await rest('sales',{
+    method:'POST',
+    headers:{'Prefer':'return=minimal'},
+    body:JSON.stringify(row)
+  });
+}
+
+function money(n){return '$'+Number(n||0).toFixed(2)}
+function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]))}
+function makeId(){if(window.crypto&&crypto.randomUUID)return crypto.randomUUID();return'id-'+Date.now()+'-'+Math.random().toString(16).slice(2)}
+function nextSku(){let n=1;while(data.products.some(p=>p.sku==='NHS-'+String(n).padStart(4,'0')))n++;return'NHS-'+String(n).padStart(4,'0')}
+
+function nav(page){
+  document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));
+  const target=document.getElementById(page); if(target)target.classList.add('active');
+  document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('active',x.dataset.page===page));
+  if(page==='codes')renderCodes();
+}
+document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>nav(b.dataset.page));
+
+document.getElementById('productForm').onsubmit=async e=>{
+  e.preventDefault();
+  const p={
+    id:makeId(),sku:nextSku(),
+    name:document.getElementById('pName').value.trim(),
+    scent:document.getElementById('pScent').value.trim(),
+    price:+document.getElementById('pPrice').value,
+    cost:+document.getElementById('pCost').value||0,
+    stock:+document.getElementById('pStock').value||0,
+    low:+document.getElementById('pLow').value||0,
+    ingredients:document.getElementById('pIngredients').value.trim(),
+    batch:document.getElementById('pBatch').value.trim(),
+    made:document.getElementById('pMade').value,
+    cure:document.getElementById('pCure').value
+  };
+  if(!p.name || Number.isNaN(p.price)){alert('Please enter a product name and price.');return}
+  data.products.push(p); saveLocal(); renderAll();
+  try{await persistProduct(p)}catch(err){showError(err)}
+  e.target.reset(); document.getElementById('pStock').value=0; document.getElementById('pLow').value=5;
+};
+
+document.getElementById('sampleBtn').onclick=async()=>{
+  const samples=[
+    {name:'Hop Head Beer Soap',scent:'Hops & Cedar',price:9.95,cost:3.10,stock:24,low:5,ingredients:'Olive oil, coconut oil, beer, hops, shea butter, fragrance.'},
+    {name:'Brewed Bliss Beer Soap',scent:'Citrus & Amber',price:9.95,cost:3.20,stock:18,low:5,ingredients:'Olive oil, coconut oil, beer, shea butter, fragrance.'},
+    {name:'Naked Hop Classic',scent:'Sandalwood & Rum',price:10.95,cost:3.50,stock:12,low:4,ingredients:'Olive oil, coconut oil, beer, cocoa butter, fragrance.'}
+  ];
+  for(const s of samples){
+    const p={...s,id:makeId(),sku:nextSku(),batch:'',made:'',cure:''};
+    data.products.push(p);
+    try{await persistProduct(p)}catch(err){}
+  }
+  saveLocal();renderAll();
+};
+
+async function deleteProduct(id){
+  if(!confirm('Delete this product?'))return;
+  data.products=data.products.filter(p=>p.id!==id);
+  cart=cart.filter(c=>c.id!==id);
+  saveLocal();renderAll();
+  try{await deleteCloudProduct(id)}catch(e){showError(e)}
+}
+async function adjust(id,delta){
+  const p=data.products.find(x=>x.id===id); if(!p)return;
+  p.stock=Math.max(0,p.stock+delta);
+  saveLocal();renderAll();
+  try{await persistProduct(p)}catch(e){showError(e)}
+}
+
+function renderProducts(){
+  const rows=data.products.map(p=>`<tr>
+<td><b>${esc(p.name)}</b><br><span class="muted">${esc(p.sku)} • ${esc(p.scent)}</span></td>
+<td>${money(p.price)}</td><td class="${p.stock<=p.low?'low':''}">${p.stock}</td>
+<td>${esc(p.ingredients||'')}<br><span class="muted">${p.batch?'Batch: '+esc(p.batch):''}${p.cure?' • Cure: '+esc(p.cure):''}</span></td>
+<td><div class="actions"><button class="secondary" onclick="window.NHS.showCodes()">Codes</button><button class="danger" onclick="window.NHS.deleteProduct('${p.id}')">Delete</button></div></td>
+</tr>`).join('');
+  document.getElementById('productTable').innerHTML=rows?`<table><tr><th>Product</th><th>Price</th><th>Stock</th><th>Details</th><th>Actions</th></tr>${rows}</table>`:'<div class="empty">No products yet.</div>';
+}
+function renderInventory(){
+  const rows=data.products.map(p=>`<tr><td><b>${esc(p.name)}</b><br>${esc(p.sku)}</td><td>${p.stock}</td><td>${p.low}</td><td><div class="actions"><button onclick="window.NHS.adjust('${p.id}',1)">+1</button><button class="secondary" onclick="window.NHS.adjust('${p.id}',-1)">−1</button></div></td></tr>`).join('');
+  document.getElementById('inventoryTable').innerHTML=rows?`<table><tr><th>Product</th><th>In stock</th><th>Low at</th><th>Adjust</th></tr>${rows}</table>`:'<div class="empty">No products yet.</div>';
+}
+function renderCodes(){
+  const wrap=document.getElementById('codeCards');
+  wrap.innerHTML=data.products.map(p=>`<div class="codebox"><b>${esc(p.name)}</b><div class="muted">${esc(p.sku)}</div><svg id="bar-${p.id}"></svg><canvas id="qr-${p.id}" width="180" height="180"></canvas></div>`).join('')||'<div class="empty">Add products first.</div>';
+  setTimeout(()=>data.products.forEach(p=>{
+    try{
+      if(window.JsBarcode)JsBarcode('#bar-'+p.id,p.sku,{format:'CODE128',displayValue:true,height:55,margin:8});
+      if(window.QRCode)QRCode.toCanvas(document.getElementById('qr-'+p.id),p.sku,{width:180,margin:2});
+    }catch(e){}
+  }),100);
+}
+
+function addCode(code){
+  const p=data.products.find(x=>x.sku.toUpperCase()===String(code).trim().toUpperCase());
+  if(!p)return false;
+  if(p.stock<=0){alert('This product is out of stock.');return false}
+  const row=cart.find(x=>x.id===p.id);
+  if(row){if(row.qty>=p.stock){alert('Not enough stock.');return false}row.qty++}
+  else cart.push({id:p.id,qty:1});
+  renderCart();return true;
+}
+function addBySku(){
+  const input=document.getElementById('scanInput');
+  if(addCode(input.value))input.value='';
+}
+function renderCart(){
+  let total=0;
+  const html=cart.map(x=>{
+    const p=data.products.find(p=>p.id===x.id); if(!p)return'';
+    const t=p.price*x.qty;total+=t;
+    return`<div class="cart-row"><span>${esc(p.name)} × ${x.qty}</span><b>${money(t)}</b></div>`;
+  }).join('');
+  document.getElementById('cart').innerHTML=html||'<div class="empty">Cart is empty.</div>';
+  document.getElementById('cartTotal').textContent=money(total);
+}
+async function completeSale(){
+  if(!cart.length){alert('Cart is empty.');return}
+  for(const x of cart){
+    const p=data.products.find(p=>p.id===x.id);
+    if(!p||p.stock<x.qty){alert('Stock changed. Clear the cart and try again.');return}
+  }
+  let total=0;
+  for(const x of cart){
+    const p=data.products.find(p=>p.id===x.id);p.stock-=x.qty;total+=p.price*x.qty;
+  }
+  const sale={id:makeId(),date:new Date().toISOString(),items:cart.map(x=>({...x})),total};
+  data.sales.push(sale);cart=[];saveLocal();renderAll();
+  try{
+    for(const x of sale.items){const p=data.products.find(p=>p.id===x.id);if(p)await persistProduct(p)}
+    await persistSale(sale);
+  }catch(e){showError(e)}
+  alert('Sale completed: '+money(total));nav('sales');
+}
+function renderSales(){
+  const rows=data.sales.slice().reverse().map(s=>`<tr><td>${new Date(s.date).toLocaleString()}</td><td>${s.items.reduce((a,x)=>a+x.qty,0)}</td><td>${money(s.total)}</td></tr>`).join('');
+  document.getElementById('salesTable').innerHTML=rows?`<table><tr><th>Date</th><th>Units</th><th>Total</th></tr>${rows}</table>`:'<div class="empty">No sales yet.</div>';
+}
+function renderDashboard(){
+  document.getElementById('dashProducts').textContent=data.products.length;
+  document.getElementById('dashStock').textContent=data.products.reduce((a,p)=>a+p.stock,0);
+  const today=new Date().toDateString();
+  document.getElementById('dashSales').textContent=money(data.sales.filter(s=>new Date(s.date).toDateString()===today).reduce((a,s)=>a+s.total,0));
+  document.getElementById('dashLow').textContent=data.products.filter(p=>p.stock<=p.low).length;
+}
+function renderAll(){renderDashboard();renderProducts();renderInventory();renderSales();renderCart()}
+
+function processScannerQueue(){
+  try{
+    const raw=localStorage.getItem('nhs_scan_queue');if(!raw)return;
+    const queue=JSON.parse(raw);if(!Array.isArray(queue)||!queue.length)return;
+    localStorage.removeItem('nhs_scan_queue');
+    queue.forEach(addCode);renderCart();nav('scan');
+  }catch(e){}
+}
+window.addEventListener('storage',e=>{if(e.key==='nhs_scan_queue')processScannerQueue()});
+
+async function migrateLocal(){
+  const st=document.getElementById('authStatus');
+  if(!session||!session.user){st.textContent='Sign in first.';return}
+  st.textContent='Uploading local data…';
+  try{
+    for(const p of data.products)await persistProduct(p);
+    for(const s of data.sales){
+      try{await persistSale(s)}catch(e){}
+    }
+    st.textContent='Local data uploaded to cloud.';
+    await loadCloudData();
+  }catch(e){st.textContent='Upload error: '+e.message}
+}
+
+function exportInventory(){
+  const headers=['SKU','Product','Scent','Price','Cost','Stock','Low Stock','Batch','Date Made','Cure Date','Ingredients'];
+  const rows=data.products.map(p=>[p.sku,p.name,p.scent,p.price,p.cost,p.stock,p.low,p.batch||'',p.made||'',p.cure||'',p.ingredients||'']);
+  const cell=v=>'"'+String(v??'').replace(/"/g,'""')+'"';
+  const csv=[headers,...rows].map(r=>r.map(cell).join(',')).join('\r\n');
+  const blob=new Blob([csv],{type:'text/csv;charset=utf-8'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='Naked_Hop_Inventory_'+new Date().toISOString().slice(0,10)+'.csv';a.click();URL.revokeObjectURL(a.href);
+}
+
+document.getElementById('addBySkuBtn').onclick=addBySku;
+document.getElementById('scanInput').onkeydown=e=>{if(e.key==='Enter')addBySku()};
+document.getElementById('clearCartBtn').onclick=()=>{cart=[];renderCart()};
+document.getElementById('completeSaleBtn').onclick=completeSale;
+document.getElementById('exportBtn').onclick=exportInventory;
+document.getElementById('signUpBtn').onclick=signUp;
+document.getElementById('signInBtn').onclick=signIn;
+document.getElementById('signOutBtn').onclick=signOut;
+document.getElementById('migrateBtn').onclick=migrateLocal;
+
+window.NHS={deleteProduct,adjust,showCodes:()=>nav('codes')};
+
+loadLocal();
+loadSession();
+updateCloudUI();
+renderAll();
+processScannerQueue();
+refreshSessionIfNeeded().then(()=>{updateCloudUI();if(session&&session.user)loadCloudData()});
+
+})();
+</script>
+</body>
+</html>
